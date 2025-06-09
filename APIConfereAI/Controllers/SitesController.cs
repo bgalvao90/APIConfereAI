@@ -19,8 +19,9 @@ namespace APIConfereAI.Controllers
             _context = context;
         }
         [HttpPost("verificar")]
-        public async Task<IActionResult> VerificarSite([FromBody] string url)
+        public async Task<IActionResult> VerificarSite([FromBody] UrlRequest request)
         {
+            string url = request?.Url;
             if (string.IsNullOrWhiteSpace(url))
             {
                 return BadRequest("A URL não pode ser vazia.");
@@ -97,10 +98,6 @@ namespace APIConfereAI.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, $"Erro ao verificar o site: {ex.Message}");
             }
         }
-
-
-
-
 
         public class UrlRequest
         {
