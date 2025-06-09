@@ -20,6 +20,7 @@ builder.Services.AddCors(options =>
               .AllowAnyMethod()
               .AllowAnyHeader());
 });
+builder.Services.AddApplicationInsightsTelemetry();
 
 var app = builder.Build();
 
