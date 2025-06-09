@@ -32,7 +32,14 @@ namespace APIConfereAI.Controllers
             {
                 var uri = new UriBuilder(url).Uri;
                 dominio = uri.Host.ToLower();
-                if (dominio.StartsWith("www.")) dominio = dominio.Substring(4);
+
+                var dominioPartes = dominio.Split('.');
+                if(dominioPartes.Length > 2)
+                {
+                    dominio = $"{dominioPartes[dominioPartes.Length - 2]}.{dominioPartes[dominioPartes.Length - 1]}";
+                }
+                dominio = dominio.Replace("www.", "");
+                
             }
             catch (UriFormatException)
             {
@@ -41,7 +48,9 @@ namespace APIConfereAI.Controllers
 
             // Verifica se já existe no banco esse domínio, independente da data
             var verificacaoExistente = await _context.Verificacoes
-                .FirstOrDefaultAsync(v => v.Dominio.ToLower() == dominio);
+                .Where(v => v.Dominio.ToLower() == dominio).
+                OrderByDescending(v => v.DataHora).
+                FirstOrDefaultAsync(); 
 
             if (verificacaoExistente != null)
             {
