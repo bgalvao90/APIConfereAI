@@ -23,15 +23,40 @@ public class OpenAIService
 
     public async Task<string> VerificarSiteComOpenAI(string url)
     {
-        var prompt = $"Esse site parece perigoso ou suspeito? Analise com base apenas na URL e de algums fontes confiaveis que você irá buscar na internet e diga se ele pode ser um site malicioso ou confiável, somente me Responda com true para confiável ou false para suspeito, responda somente com True para confiavel e False para Malicioso e me diga a reputação do site baseado no ReclameAqui.com.br: {url}";
+        var prompt = $@"
+Você é um verificador especializado em segurança e reputação de sites na internet.
+
+Analise a URL abaixo e responda APENAS com um JSON contendo os seguintes campos:
+
+- ""Confiavel"": true ou false (verdadeiro se o domínio for legítimo, profissional, seguro e com boa reputação),
+- ""Categoria"": categoria principal do site (ex: Streaming, E-commerce, Banco, Governo, Notícias, Jogos),
+- ""Dominio"": domínio principal da URL (ex: max.com, gov.br, mercado livre),
+- ""PontuacaoReclameAqui"": esse campo deve ser string, nota estimada de 0 a 10 baseada na reputação pública (site reclameaqui.com.br, siteconfiavel.com.br, e outras fontes confiáveis),
+- ""Resultado"": breve resumo da análise (máximo 3 frases).
+
+Regras importantes:
+
+- Considere como confiável sites legítimos que possuam protocolo HTTPS, aparência profissional, e ausência de reclamações graves, mesmo que sejam pouco conhecidos ou novos.
+- Se não houver informações suficientes sobre a reputação do site, atribua uma pontuação intermediária (ex: 5) e não marque automaticamente como não confiável.
+- Apenas atribua ""confiavel"": false se houver indícios claros de risco, fraude, má reputação ou reclamações significativas.
+- Domínios novos ou incomuns não devem ser automaticamente marcados como suspeitos.
+- Utilize múltiplas fontes de reputação para a análise, como sites de reclamação e avaliações públicas.
+- Retorne somente um JSON puro, sem texto extra ou comentários.
+- Se não houver cadastro no ReclameAqui.com.br, utilize outras fontes confiáveis para estimar a pontuação de reputação ou retorne como não cadastrado.
+
+URL a ser analisada: {url}
+
+";
+
+
 
         var request = new
         {
             model = "meta-llama/llama-4-scout-17b-16e-instruct",
             messages = new[]
             {
-                new { role = "user", content = prompt }
-            }
+            new { role = "user", content = prompt }
+        }
         };
 
         var content = new StringContent(JsonSerializer.Serialize(request), Encoding.UTF8, "application/json");

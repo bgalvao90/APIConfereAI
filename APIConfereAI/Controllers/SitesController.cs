@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace APIConfereAI.Controllers
 {
@@ -25,21 +26,70 @@ namespace APIConfereAI.Controllers
                 return BadRequest("A URL não pode ser vazia.");
             }
 
+            string dominio;
             try
             {
-                var resultado = await _openAIService.VerificarSiteComOpenAI(url);
+                var uri = new UriBuilder(url).Uri;
+                dominio = uri.Host.ToLower();
+                if (dominio.StartsWith("www.")) dominio = dominio.Substring(4);
+            }
+            catch (UriFormatException)
+            {
+                return BadRequest("Formato de URL inválido.");
+            }
+
+            // Verifica se já existe no banco esse domínio, independente da data
+            var verificacaoExistente = await _context.Verificacoes
+                .FirstOrDefaultAsync(v => v.Dominio.ToLower() == dominio);
+
+            if (verificacaoExistente != null)
+            {
+                return Ok(verificacaoExistente);
+            }
+
+            try
+            {
+                var resultadoJson = await _openAIService.VerificarSiteComOpenAI(url);
+
+                var jsonLimpo = resultadoJson
+                    .Replace("```json", "")
+                    .Replace("```", "")
+                    .Trim();
+
+                RespostaOpenAI resposta;
+                try
+                {
+                    resposta = JsonSerializer.Deserialize<RespostaOpenAI>(jsonLimpo, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("Erro ao desserializar JSON: " + ex.Message);
+                    Console.WriteLine("Conteúdo retornado: " + resultadoJson);
+                    throw new Exception("A resposta da IA não está em formato JSON válido.");
+                }
 
                 var verificacao = new Verificacao
                 {
                     Url = url,
-                    Resultado = resultado,
-                    DataHora = DateTime.UtcNow
+                    Resultado = resposta.Resultado,
+                    DataHora = DateTime.Now,
+                    Confiavel = resposta.Confiavel,
+                    Categoria = string.IsNullOrWhiteSpace(resposta.Categoria) ? "Não especificada" : resposta.Categoria,
+                    Dominio = string.IsNullOrWhiteSpace(resposta.Dominio)
+                        ? dominio
+                        : resposta.Dominio.ToLower().Replace("www.", ""),
+                    PontuacaoReclameAqui = string.IsNullOrWhiteSpace(resposta.PontuacaoReclameAqui)
+                        ? "Não cadastrado"
+                        : resposta.PontuacaoReclameAqui
                 };
 
                 _context.Verificacoes.Add(verificacao);
                 await _context.SaveChangesAsync();
 
-                return Ok(new { Url = url, Resultado = resultado });
+                return Ok(verificacao);
             }
             catch (Exception ex)
             {
@@ -47,6 +97,9 @@ namespace APIConfereAI.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, $"Erro ao verificar o site: {ex.Message}");
             }
         }
+
+
+
 
 
         public class UrlRequest
@@ -57,6 +110,10 @@ namespace APIConfereAI.Controllers
         [HttpGet("historico")]
         public async Task<IActionResult> ObterHistorico()
         {
+            if (_context.Verificacoes == null)
+            {
+                return NotFound("Nenhuma verificação encontrada.");
+            }
             var lista = await _context.Verificacoes
                 .OrderByDescending(v => v.DataHora)
                 .ToListAsync();
